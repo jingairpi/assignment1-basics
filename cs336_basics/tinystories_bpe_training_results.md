@@ -15,12 +15,12 @@ Successfully implemented and executed BPE training on the TinyStories dataset wi
 
 ### Performance Metrics
 
-- **Training Time**: 11.1 minutes
-- **Peak Memory Usage**: 0.12 GB (127.7 MB)
+- **Training Time**: 2.6 minutes
+- **Peak Memory Usage**: 0.10 GB (105.5 MB)
 - **Target Achievement**:
 
-  - ✅ Training time: 11.1 minutes ≤ 30 minutes (target met)
-  - ✅ Memory usage: 0.12 GB ≤ 30 GB (target met)
+  - ✅ Training time: 2.6 minutes ≤ 30 minutes (target met)
+  - ✅ Memory usage: 0.10 GB ≤ 30 GB (target met)
 
 ### Vocabulary Analysis
 
@@ -108,7 +108,7 @@ The profiling analysis reveals that **merge operations dominate the training tim
 
 ### Part (a): Training metrics and longest token analysis
 
-Training completed in 11.1 minutes using 0.12 GB RAM. The longest token is `' accomplishment'` (15 bytes), which makes linguistic sense as it represents a complete, meaningful word commonly found in children's stories and demonstrates effective subword learning.
+Training completed in 2.6 minutes using 0.10 GB RAM. The longest token is `' accomplishment'` (15 bytes), which makes linguistic sense as it represents a complete, meaningful word commonly found in children's stories and demonstrates effective subword learning.
 
 ### Part (b): Profiling results
 
