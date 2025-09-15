@@ -41,10 +41,11 @@ def train_bpe(input_path: str | os.PathLike, vocab_size: int, special_tokens: li
     # Forward optional keyword arguments for flexibility (e.g. num_processes)
     word_counts = _get_pretokenized_word_counts(input_path, special_tokens, **kwargs)
 
+    # Initialize pair counts once (optimization: avoid recalculating on each iteration)
+    pair_counts = _count_adjacent_pairs(word_counts)
+
     # Perform BPE merges until we reach target vocabulary size
     while len(vocab) < vocab_size:
-        pair_counts = _count_adjacent_pairs(word_counts)
-
         if not pair_counts:
             break  # No more pairs to merge
 
@@ -55,8 +56,10 @@ def train_bpe(input_path: str | os.PathLike, vocab_size: int, special_tokens: li
         new_token_id = _add_merged_token_to_vocab(vocab, best_pair)
         merges.append((vocab[best_pair[0]], vocab[best_pair[1]]))
 
-        # Update word counts to reflect the merge
-        word_counts = _apply_merge_to_words(word_counts, best_pair, new_token_id)
+        # Update word counts and pair counts incrementally (optimization)
+        word_counts = _apply_merge_and_update_pair_counts(
+            word_counts, pair_counts, best_pair, new_token_id
+        )
 
     return vocab, merges
 
@@ -192,19 +195,65 @@ def _add_merged_token_to_vocab(vocab: dict[int, bytes], pair: tuple[int, int]) -
     return new_token_id
 
 
-def _apply_merge_to_words(
+def _add_word_pair_counts(pair_counts: dict[tuple[int, int], int], word: tuple[int, ...], count: int) -> None:
+    """Add pair counts from a single word to the global pair counts."""
+    for a, b in zip(word, word[1:]):
+        pair_counts[(a, b)] = pair_counts.get((a, b), 0) + count
+
+
+def _subtract_word_pair_counts(pair_counts: dict[tuple[int, int], int], word: tuple[int, ...], count: int) -> None:
+    """Subtract pair counts from a single word from the global pair counts."""
+    for a, b in zip(word, word[1:]):
+        pair = (a, b)
+        if pair in pair_counts:
+            pair_counts[pair] -= count
+            if pair_counts[pair] <= 0:
+                del pair_counts[pair]
+
+
+def _apply_merge_and_update_pair_counts(
     word_counts: dict[tuple[int, ...], int],
+    pair_counts: dict[tuple[int, int], int],
     pair_to_merge: tuple[int, int],
     new_token_id: int,
 ) -> dict[tuple[int, ...], int]:
-    """Apply a merge operation to all words, replacing the specified pair with the new token."""
-    new_word_counts = defaultdict(int)
+    """Apply merge operation and update pair counts incrementally (optimization).
+
+    This function replaces the naive approach of recalculating all pair counts.
+    Instead, it only updates pair counts for words that are affected by the merge.
+    """
+    new_word_counts = {}
 
     for word, count in word_counts.items():
-        new_word = _merge_pair_in_word(word, pair_to_merge, new_token_id)
-        new_word_counts[new_word] += count
+        # Quick check: if word doesn't contain either token from the pair, skip
+        if pair_to_merge[0] not in word or pair_to_merge[1] not in word:
+            new_word_counts[word] = count
+            continue
 
-    return dict(new_word_counts)
+        # Check if word actually contains the adjacent pair
+        contains_adjacent_pair = False
+        for i in range(len(word) - 1):
+            if word[i] == pair_to_merge[0] and word[i + 1] == pair_to_merge[1]:
+                contains_adjacent_pair = True
+                break
+
+        if not contains_adjacent_pair:
+            new_word_counts[word] = count
+            continue
+
+        # Word contains the adjacent pair - need to update pair counts
+        # Remove old pair counts from this word
+        _subtract_word_pair_counts(pair_counts, word, count)
+
+        # Apply merge to get new word
+        new_word = _merge_pair_in_word(word, pair_to_merge, new_token_id)
+
+        # Add new pair counts from the updated word
+        _add_word_pair_counts(pair_counts, new_word, count)
+
+        new_word_counts[new_word] = count
+
+    return new_word_counts
 
 
 def _merge_pair_in_word(
