@@ -41,7 +41,7 @@ def train_bpe(input_path: str | os.PathLike, vocab_size: int, special_tokens: li
     # Forward optional keyword arguments for flexibility (e.g. num_processes)
     word_counts = _get_pretokenized_word_counts(input_path, special_tokens, **kwargs)
 
-    # Initialize pair counts once (optimization: avoid recalculating on each iteration)
+    # Initialize pair counts once
     pair_counts = _count_adjacent_pairs(word_counts)
 
     # Perform BPE merges until we reach target vocabulary size
@@ -56,7 +56,7 @@ def train_bpe(input_path: str | os.PathLike, vocab_size: int, special_tokens: li
         new_token_id = _add_merged_token_to_vocab(vocab, best_pair)
         merges.append((vocab[best_pair[0]], vocab[best_pair[1]]))
 
-        # Update word counts and pair counts incrementally (optimization)
+        # Update word counts and pair counts incrementally
         word_counts = _apply_merge_and_update_pair_counts(
             word_counts, pair_counts, best_pair, new_token_id
         )
@@ -217,7 +217,7 @@ def _apply_merge_and_update_pair_counts(
     pair_to_merge: tuple[int, int],
     new_token_id: int,
 ) -> dict[tuple[int, ...], int]:
-    """Apply merge operation and update pair counts incrementally (optimization).
+    """Apply merge operation and update pair counts incrementally.
 
     This function replaces the naive approach of recalculating all pair counts.
     Instead, it only updates pair counts for words that are affected by the merge.
