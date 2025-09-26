@@ -23,7 +23,8 @@ def get_memory_usage_mb():
         memory_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         # On macOS, ru_maxrss is in bytes, on Linux it's in KB
         import platform
-        if platform.system() == 'Darwin':  # macOS
+
+        if platform.system() == "Darwin":  # macOS
             return memory_kb / 1024 / 1024  # bytes to MB
         else:  # Linux
             return memory_kb / 1024  # KB to MB
@@ -46,9 +47,9 @@ def format_time(seconds):
 
 def analyze_vocabulary(vocab, merges):
     """Analyze the trained vocabulary and merges."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("VOCABULARY ANALYSIS")
-    print("="*60)
+    print("=" * 60)
 
     # Find longest token
     longest_token = max(vocab.values(), key=len)
@@ -58,7 +59,7 @@ def analyze_vocabulary(vocab, merges):
             longest_token_id = token_id
             break
 
-    longest_token_str = longest_token.decode('utf-8', errors='replace')
+    longest_token_str = longest_token.decode("utf-8", errors="replace")
 
     print(f"Vocabulary size: {len(vocab)}")
     print(f"Number of merges: {len(merges)}")
@@ -72,14 +73,13 @@ def analyze_vocabulary(vocab, merges):
     print(f"Token length range: {min(token_lengths)} - {max(token_lengths)} bytes")
 
     # Show some example long tokens
-    long_tokens = [(token_id, token_bytes) for token_id, token_bytes in vocab.items()
-                   if len(token_bytes) >= 10]
+    long_tokens = [(token_id, token_bytes) for token_id, token_bytes in vocab.items() if len(token_bytes) >= 10]
     long_tokens.sort(key=lambda x: len(x[1]), reverse=True)
 
     print(f"\nTop 10 longest tokens:")
     for i, (token_id, token_bytes) in enumerate(long_tokens[:10]):
-        token_str = token_bytes.decode('utf-8', errors='replace')
-        print(f"  {i+1:2d}. {repr(token_str):30} (ID: {token_id:4d}, {len(token_bytes):2d} bytes)")
+        token_str = token_bytes.decode("utf-8", errors="replace")
+        print(f"  {i + 1:2d}. {repr(token_str):30} (ID: {token_id:4d}, {len(token_bytes):2d} bytes)")
 
     return longest_token_str, len(longest_token)
 
@@ -91,31 +91,32 @@ def save_tokenizer_artifacts(vocab, merges, output_dir="data/tokenizer_output"):
 
     # Save vocabulary as JSON (convert bytes to base64 for JSON serialization)
     import base64
+
     vocab_json = {}
     for token_id, token_bytes in vocab.items():
         # Store as base64 encoded string for JSON compatibility
         vocab_json[str(token_id)] = {
-            "bytes_b64": base64.b64encode(token_bytes).decode('ascii'),
-            "text": token_bytes.decode('utf-8', errors='replace'),
-            "length": len(token_bytes)
+            "bytes_b64": base64.b64encode(token_bytes).decode("ascii"),
+            "text": token_bytes.decode("utf-8", errors="replace"),
+            "length": len(token_bytes),
         }
 
     vocab_path = output_path / "vocabulary.json"
-    with open(vocab_path, 'w', encoding='utf-8') as f:
+    with open(vocab_path, "w", encoding="utf-8") as f:
         json.dump(vocab_json, f, indent=2, ensure_ascii=False)
 
     # Save merges as text file
     merges_path = output_path / "merges.txt"
-    with open(merges_path, 'w', encoding='utf-8') as f:
+    with open(merges_path, "w", encoding="utf-8") as f:
         for i, (token1_bytes, token2_bytes) in enumerate(merges):
-            token1_str = token1_bytes.decode('utf-8', errors='replace')
-            token2_str = token2_bytes.decode('utf-8', errors='replace')
+            token1_str = token1_bytes.decode("utf-8", errors="replace")
+            token2_str = token2_bytes.decode("utf-8", errors="replace")
             f.write(f"{i:4d}: {repr(token1_str)} + {repr(token2_str)}\n")
 
     # Save raw pickle for easy loading
     pickle_path = output_path / "tokenizer.pkl"
-    with open(pickle_path, 'wb') as f:
-        pickle.dump({'vocab': vocab, 'merges': merges}, f)
+    with open(pickle_path, "wb") as f:
+        pickle.dump({"vocab": vocab, "merges": merges}, f)
 
     print(f"\nTokenizer artifacts saved to: {output_path}")
     print(f"  - vocabulary.json: Human-readable vocabulary")
@@ -127,9 +128,9 @@ def save_tokenizer_artifacts(vocab, merges, output_dir="data/tokenizer_output"):
 
 def profile_bpe_training(input_path, vocab_size, special_tokens, **kwargs):
     """Profile the BPE training process to identify bottlenecks."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("PROFILING BPE TRAINING")
-    print("="*60)
+    print("=" * 60)
 
     # Create profiler
     profiler = cProfile.Profile()
@@ -141,13 +142,13 @@ def profile_bpe_training(input_path, vocab_size, special_tokens, **kwargs):
 
     # Analyze profiling results
     stats = pstats.Stats(profiler)
-    stats.sort_stats('cumulative')
+    stats.sort_stats("cumulative")
 
     print("\nTop 10 functions by cumulative time:")
     stats.print_stats(10)
 
     print("\nTop 10 functions by total time:")
-    stats.sort_stats('tottime')
+    stats.sort_stats("tottime")
     stats.print_stats(10)
 
     # Save profiling results
@@ -160,9 +161,9 @@ def profile_bpe_training(input_path, vocab_size, special_tokens, **kwargs):
 
 def train_bpe_optimized(input_path, vocab_size, special_tokens, enable_profiling=False):
     """Train BPE with optimizations and monitoring."""
-    print("="*60)
+    print("=" * 60)
     print("BPE TRAINING ON TINYSTORIES")
-    print("="*60)
+    print("=" * 60)
     print(f"Input file: {input_path}")
     print(f"Target vocabulary size: {vocab_size}")
     print(f"Special tokens: {special_tokens}")
@@ -181,13 +182,17 @@ def train_bpe_optimized(input_path, vocab_size, special_tokens, enable_profiling
 
     if enable_profiling:
         vocab, merges = profile_bpe_training(
-            input_path, vocab_size, special_tokens,
-            num_processes=None  # Use all available CPUs
+            input_path,
+            vocab_size,
+            special_tokens,
+            num_processes=None,  # Use all available CPUs
         )
     else:
         vocab, merges = train_bpe(
-            input_path, vocab_size, special_tokens,
-            num_processes=None  # Use all available CPUs
+            input_path,
+            vocab_size,
+            special_tokens,
+            num_processes=None,  # Use all available CPUs
         )
 
     end_time = time.time()
@@ -198,9 +203,9 @@ def train_bpe_optimized(input_path, vocab_size, special_tokens, enable_profiling
     memory_used = peak_memory - initial_memory
 
     # Report performance metrics
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TRAINING RESULTS")
-    print("="*60)
+    print("=" * 60)
     print(f"Training time: {format_time(training_time)}")
     print(f"Peak memory usage: {peak_memory:.1f} MB")
     print(f"Additional memory used: {memory_used:.1f} MB")
@@ -249,9 +254,9 @@ def main():
         output_dir = save_tokenizer_artifacts(vocab, merges)
 
         # Final summary
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("FINAL SUMMARY")
-        print("="*60)
+        print("=" * 60)
         print(f"Training completed successfully!")
         print(f"Training time: {format_time(training_time)}")
         print(f"Peak memory usage: {peak_memory / 1024:.2f} GB")
@@ -259,21 +264,26 @@ def main():
         print(f"Artifacts saved to: {output_dir}")
 
         # Deliverable responses
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("DELIVERABLE RESPONSES")
-        print("="*60)
+        print("=" * 60)
         print("Part (a): Training metrics and longest token analysis:")
-        print(f"  Training completed in {format_time(training_time)} using {peak_memory / 1024:.2f} GB RAM. "
-              f"The longest token is {repr(longest_token)} ({longest_length} bytes), which makes linguistic sense "
-              f"as it represents a common word or phrase pattern in the TinyStories dataset.")
+        print(
+            f"  Training completed in {format_time(training_time)} using {peak_memory / 1024:.2f} GB RAM. "
+            f"The longest token is {repr(longest_token)} ({longest_length} bytes), which makes linguistic sense "
+            f"as it represents a common word or phrase pattern in the TinyStories dataset."
+        )
 
         print("\nPart (b): Profiling results:")
-        print("  The profiling analysis shows that [specific bottleneck] consumes the most time during training, "
-              "indicating that [optimization area] is the primary performance constraint.")
+        print(
+            "  The profiling analysis shows that [specific bottleneck] consumes the most time during training, "
+            "indicating that [optimization area] is the primary performance constraint."
+        )
 
     except Exception as e:
         print(f"Error during training: {e}")
         import traceback
+
         traceback.print_exc()
 
 
