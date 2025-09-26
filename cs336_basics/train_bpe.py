@@ -9,16 +9,19 @@ from cs336_basics.pretokenization_example import find_chunk_boundaries
 # Regex pattern for pretokenization (matches GPT-2 style tokenization)
 PRETOKENIZATION_RE = re.compile(r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
 
-def train_bpe(input_path: str | os.PathLike, vocab_size: int, special_tokens: list[str], **kwargs) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+
+def train_bpe(
+    input_path: str | os.PathLike, vocab_size: int, special_tokens: list[str], **kwargs
+) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """Train a BPE tokenizer on the given corpus (GPT-2 style).
 
-    This implements modern byte-level BPE with regex pretokenization, not naive 
+    This implements modern byte-level BPE with regex pretokenization, not naive
     character-level BPE. The algorithm:
     1. Pretokenizes text using GPT-2 style regex
-    2. Initializes vocabulary with all 256 bytes + special tokens  
+    2. Initializes vocabulary with all 256 bytes + special tokens
     3. Iteratively merges most frequent adjacent pairs within pretokenized units
     4. Never merges across pretokenization boundaries
-    
+
     Args:
         input_path: Path to BPE tokenizer training data.
         vocab_size: Total number of items in the tokenizer's vocabulary (including special tokens).
@@ -57,9 +60,7 @@ def train_bpe(input_path: str | os.PathLike, vocab_size: int, special_tokens: li
         merges.append((vocab[best_pair[0]], vocab[best_pair[1]]))
 
         # Update word counts and pair counts incrementally
-        word_counts = _apply_merge_and_update_pair_counts(
-            word_counts, pair_counts, best_pair, new_token_id
-        )
+        word_counts = _apply_merge_and_update_pair_counts(word_counts, pair_counts, best_pair, new_token_id)
 
     return vocab, merges
 
@@ -101,10 +102,7 @@ def _get_pretokenized_word_counts(
         boundaries = find_chunk_boundaries(f, num_processes, split_special_token)
 
     # Create chunk jobs
-    chunk_jobs = [
-        (input_path, start, end, special_tokens)
-        for start, end in zip(boundaries[:-1], boundaries[1:])
-    ]
+    chunk_jobs = [(input_path, start, end, special_tokens) for start, end in zip(boundaries[:-1], boundaries[1:])]
 
     # If there's only one chunk (or none), avoid multiprocessing overhead
     if len(chunk_jobs) <= 1:
@@ -122,7 +120,9 @@ def _get_pretokenized_word_counts(
     return _merge_word_counts(chunk_results)
 
 
-def _preprocess_chunk(input_path: str | os.PathLike, start: int, end: int, special_tokens: list[str]) -> dict[tuple[int, ...], int]:
+def _preprocess_chunk(
+    input_path: str | os.PathLike, start: int, end: int, special_tokens: list[str]
+) -> dict[tuple[int, ...], int]:
     """Preprocess a chunk of the input data, returning word counts as tuples of byte values.
 
     Args:
@@ -256,17 +256,15 @@ def _apply_merge_and_update_pair_counts(
     return new_word_counts
 
 
-def _merge_pair_in_word(
-    word: tuple[int, ...], pair_to_merge: tuple[int, int], new_token_id: int
-) -> tuple[int, ...]:
+def _merge_pair_in_word(word: tuple[int, ...], pair_to_merge: tuple[int, int], new_token_id: int) -> tuple[int, ...]:
     """Replace all occurrences of pair_to_merge in word with new_token_id."""
     if len(word) < 2:
         return word
-    
+
     a, b = pair_to_merge
     result = []
     i = 0
-    
+
     while i < len(word):
         # Check if we have a pair match at current position
         if i < len(word) - 1 and word[i] == a and word[i + 1] == b:
@@ -275,5 +273,5 @@ def _merge_pair_in_word(
         else:
             result.append(word[i])
             i += 1
-    
+
     return tuple(result)
