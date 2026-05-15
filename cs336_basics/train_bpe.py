@@ -16,7 +16,6 @@ def train_bpe(
     input_path: str | os.PathLike,
     vocab_size: int,
     special_tokens: list[str],
-    **kwargs,
 ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     vocab: dict[int, bytes] = {}
     merges: list[tuple[bytes, bytes]] = []
@@ -25,7 +24,7 @@ def train_bpe(
 
     # 1: Vocab initialization
 
-    ## Initialize the default vocab (ASCII)
+    ## Initialize the default vocab
     for i in range(256):
         vocab[i] = bytes([i])
     initial_vocab_size = len(vocab)
@@ -50,13 +49,13 @@ def train_bpe(
         with Pool(processes=num_processes) as pool:
             chunk_pre_token_freqs = pool.starmap(_count_pre_tokens, args)
 
-        for sharded_freq_table in chunk_pre_token_freqs:
-            for pre_token, count in sharded_freq_table.items():
+        for chunk_pre_token_freq in chunk_pre_token_freqs:
+            for pre_token, count in chunk_pre_token_freq.items():
                 pre_token_freqs[pre_token] = pre_token_freqs.get(pre_token, 0) + count
 
     # 3: Merges
 
-    pair_counts, pair_to_pretokens = _build_pair_index(pre_token_freqs)
+    pair_counts, pair_to_pre_tokens = _build_pair_index(pre_token_freqs)
     while len(vocab) < vocab_size:
         if not pair_counts:
             break
@@ -71,7 +70,7 @@ def train_bpe(
         new_token_id = len(vocab)
         vocab[new_token_id] = new_token
 
-        _apply_merge_to_freqs(pre_token_freqs, best_pair, new_token_id, pair_counts, pair_to_pretokens)
+        _apply_merge_to_freqs(pre_token_freqs, best_pair, new_token_id, pair_counts, pair_to_pre_tokens)
 
     return (vocab, merges)
 
@@ -101,13 +100,13 @@ def _build_pair_index(
     pre_token_freqs: dict[tuple[int, ...], int],
 ) -> tuple[dict[tuple[int, int], int], defaultdict[tuple[int, int], set[tuple[int, ...]]]]:
     pair_counts: dict[tuple[int, int], int] = {}
-    pair_to_pretokens: defaultdict[tuple[int, int], set[tuple[int, ...]]] = defaultdict(set)
+    pair_to_pre_tokens: defaultdict[tuple[int, int], set[tuple[int, ...]]] = defaultdict(set)
 
     for pre_token_ids, count in pre_token_freqs.items():
         for token_id, next_token_id in itertools.pairwise(pre_token_ids):
             pair_counts[(token_id, next_token_id)] = pair_counts.get((token_id, next_token_id), 0) + count
-            pair_to_pretokens[(token_id, next_token_id)].add(pre_token_ids)
-    return pair_counts, pair_to_pretokens
+            pair_to_pre_tokens[(token_id, next_token_id)].add(pre_token_ids)
+    return pair_counts, pair_to_pre_tokens
 
 
 def _apply_merge_to_freqs(
@@ -115,16 +114,16 @@ def _apply_merge_to_freqs(
     best_pair: tuple[int, int],
     new_token_id: int,
     pair_counts: dict[tuple[int, int], int],
-    pair_to_pretokens: defaultdict[tuple[int, int], set[tuple[int, ...]]],
+    pair_to_pre_tokens: defaultdict[tuple[int, int], set[tuple[int, ...]]],
 ) -> None:
     dirty_pairs = set()
 
-    for pre_token_ids in list(pair_to_pretokens[best_pair]):
+    for pre_token_ids in list(pair_to_pre_tokens[best_pair]):
         count = pre_token_freqs[pre_token_ids]
         for token_id, next_token_id in itertools.pairwise(pre_token_ids):
             key = (token_id, next_token_id)
             pair_counts[key] -= count
-            pair_to_pretokens[key].discard(pre_token_ids)
+            pair_to_pre_tokens[key].discard(pre_token_ids)
             dirty_pairs.add(key)
 
         pre_token_list = []
@@ -142,7 +141,7 @@ def _apply_merge_to_freqs(
         for i in range(len(pre_token_list) - 1):
             key = (pre_token_list[i], pre_token_list[i + 1])
             pair_counts[key] = pair_counts.get(key, 0) + count
-            pair_to_pretokens[key].add(pre_token_tuple)
+            pair_to_pre_tokens[key].add(pre_token_tuple)
 
         del pre_token_freqs[pre_token_ids]
         pre_token_freqs[pre_token_tuple] = pre_token_freqs.get(pre_token_tuple, 0) + count
