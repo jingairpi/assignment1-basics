@@ -19,8 +19,12 @@ def train_bpe(
 ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     vocab: dict[int, bytes] = {}
     merges: list[tuple[bytes, bytes]] = []
-    special_pattern = f"({'|'.join(re.escape(t) for t in special_tokens)})" if special_tokens else ""
-    special_tokens_set = set(special_tokens)
+    if special_tokens:
+        special_pattern = f"({'|'.join(re.escape(t) for t in special_tokens)})"
+        special_tokens_set = set(special_tokens)
+    else:
+        special_pattern = ""
+        special_tokens_set = set()
 
     # 1: Vocab initialization
 
@@ -38,7 +42,9 @@ def train_bpe(
     pre_token_freqs: dict[tuple[int, ...], int] = {}
     with open(input_path, "rb") as f:
         num_processes = os.cpu_count()
-        boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(
+            f, num_processes, special_tokens[0].encode("utf-8") if special_tokens else b"\n"
+        )
 
         chunks = []
         for start, end in zip(boundaries[:-1], boundaries[1:]):
@@ -61,7 +67,10 @@ def train_bpe(
             break
 
         # Lexicographically greater pair wins
-        best_pair, _ = max(pair_counts.items(), key=lambda item: (item[1], vocab[item[0][0]], vocab[item[0][1]]))
+        best_pair, _ = max(
+            pair_counts.items(),
+            key=lambda pair_and_count: (pair_and_count[1], vocab[pair_and_count[0][0]], vocab[pair_and_count[0][1]]),
+        )
 
         first_token = vocab[best_pair[0]]
         second_token = vocab[best_pair[1]]
@@ -82,15 +91,15 @@ def _count_pre_tokens(chunk: str, special_pattern: str, special_tokens_set: set[
     else:
         split_segments = [chunk]
 
-    for part in split_segments:
-        if not part:
+    for split_segment in split_segments:
+        if not split_segment:
             continue
 
         # Skip special tokens so they don't get shredded by the regex
-        if part in special_tokens_set:
+        if split_segment in special_tokens_set:
             continue
 
-        for pre_token_str in TIKTOKEN_PATTERN.findall(part):
+        for pre_token_str in TIKTOKEN_PATTERN.findall(split_segment):
             pre_token_ids = tuple(pre_token_str.encode("utf-8"))
             pre_token_freqs[pre_token_ids] = pre_token_freqs.get(pre_token_ids, 0) + 1
     return pre_token_freqs
@@ -116,7 +125,7 @@ def _apply_merge_to_freqs(
     pair_counts: dict[tuple[int, int], int],
     pair_to_pre_tokens: defaultdict[tuple[int, int], set[tuple[int, ...]]],
 ) -> None:
-    dirty_pairs = set()
+    stale_pairs = set()
 
     for pre_token_ids in list(pair_to_pre_tokens[best_pair]):
         count = pre_token_freqs[pre_token_ids]
@@ -124,7 +133,7 @@ def _apply_merge_to_freqs(
             key = (token_id, next_token_id)
             pair_counts[key] -= count
             pair_to_pre_tokens[key].discard(pre_token_ids)
-            dirty_pairs.add(key)
+            stale_pairs.add(key)
 
         pre_token_list = []
         i = 0
@@ -138,14 +147,14 @@ def _apply_merge_to_freqs(
                 i += 1
 
         pre_token_tuple = tuple(pre_token_list)
-        for i in range(len(pre_token_list) - 1):
-            key = (pre_token_list[i], pre_token_list[i + 1])
+        for token_id, next_token_id in itertools.pairwise(pre_token_list):
+            key = (token_id, next_token_id)
             pair_counts[key] = pair_counts.get(key, 0) + count
             pair_to_pre_tokens[key].add(pre_token_tuple)
 
         del pre_token_freqs[pre_token_ids]
         pre_token_freqs[pre_token_tuple] = pre_token_freqs.get(pre_token_tuple, 0) + count
 
-    for key in dirty_pairs:
+    for key in stale_pairs:
         if key in pair_counts and pair_counts[key] <= 0:
             del pair_counts[key]
