@@ -3,6 +3,14 @@ import torch.nn as nn
 
 
 class RMSNorm(nn.Module):
+    """
+    Root Mean Square Layer Normalization (RMSNorm).
+
+    A mathematically simplified and computationally cheaper alternative to LayerNorm
+    that normalizes activations strictly by their root mean square, ignoring mean centering.
+    Widely used in modern architectures like LLaMA.
+    """
+
     def __init__(
         self,
         d_model: int,
@@ -16,6 +24,17 @@ class RMSNorm(nn.Module):
         self.weight = nn.Parameter(torch.ones(d_model, device=device, dtype=dtype))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Applies RMS normalization to the input tensor.
+        Calculations are internally upcasted to float32 for numerical stability
+        before being scaled by the learnable weight parameter.
+        Args:
+            x (torch.Tensor): The input tensor of shape (..., d_model).
+
+        Returns:
+            torch.Tensor: The normalized tensor of shape (..., d_model), returned
+                          in the original input data type.
+        """
         in_type = x.dtype
         x = x.to(torch.float)
         square_mean = torch.mean(x**2, dim=-1, keepdim=True)

@@ -6,6 +6,15 @@ from cs336_basics.linear import Linear
 
 
 class SwiGLU(nn.Module):
+    """
+    A position-wise feed-forward network utilizing the SwiGLU activation mechanism.
+
+    Combines a Swish (SiLU) activation function with a Gated Linear Unit (GLU).
+    The input is projected independently via two linear layers; one pathway is
+    activated and acts as a multiplicative gate to the other, before a final
+    linear down-projection.
+    """
+
     def __init__(
         self,
         d_model: int,
@@ -21,6 +30,14 @@ class SwiGLU(nn.Module):
         self.w3 = Linear(d_model, d_ff, device, dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculates the SwiGLU forward pass over the sequence.
+        Args:
+            x (torch.Tensor): The input hidden states of shape (..., d_model).
+
+        Returns:
+            torch.Tensor: The output hidden states of shape (..., d_model).
+        """
         w1_out = self.w1(x)
         w3_out = self.w3(x)
 
