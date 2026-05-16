@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from cs336_basics.linear import Linear
 
@@ -23,6 +24,6 @@ class SwiGLU(nn.Module):
         w1_out = self.w1(x)
         w3_out = self.w3(x)
 
-        hidden = w1_out * torch.sigmoid(w1_out) * w3_out
+        hidden = F.silu(w1_out) * w3_out
 
         return self.w2(hidden)
