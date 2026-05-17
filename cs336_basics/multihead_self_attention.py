@@ -23,7 +23,7 @@ class MultiheadSelfAttention(nn.Module):
         d_model: int,
         num_heads: int,
         theta: float | None = None,
-        max_seq_len: float | None = None,
+        max_seq_len: int | None = None,
         device: torch.device | str | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -68,7 +68,7 @@ class MultiheadSelfAttention(nn.Module):
             v_proj, "... seq_len (num_heads head_dim) -> ... num_heads seq_len head_dim", num_heads=self.num_heads
         )
 
-        if self.rope:
+        if self.rope and token_positions is not None:
             q_proj = self.rope(q_proj, token_positions)
             k_proj = self.rope(k_proj, token_positions)
 
