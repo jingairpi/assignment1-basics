@@ -20,6 +20,7 @@ from cs336_basics.softmax import softmax
 from cs336_basics.scaled_dot_product_attention import scaled_dot_product_attention
 from cs336_basics.multihead_self_attention import MultiheadSelfAttention
 from cs336_basics.transformer_block import TransformerBlock
+from cs336_basics.transformer_lm import TransformerLM
 
 
 def run_linear(
@@ -404,7 +405,22 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+
+    transformer_lm = TransformerLM(vocab_size, context_length, d_model, num_layers, num_heads, d_ff, rope_theta)
+    transformer_lm.token_embeddings.weight.data = weights["token_embeddings.weight"]
+    for i in range(num_layers):
+        transformer_lm.layers[i].attn.q_proj.weight.data = weights[f"layers.{i}.attn.q_proj.weight"]
+        transformer_lm.layers[i].attn.k_proj.weight.data = weights[f"layers.{i}.attn.k_proj.weight"]
+        transformer_lm.layers[i].attn.v_proj.weight.data = weights[f"layers.{i}.attn.v_proj.weight"]
+        transformer_lm.layers[i].attn.o_proj.weight.data = weights[f"layers.{i}.attn.output_proj.weight"]
+        transformer_lm.layers[i].ln1.weight.data = weights[f"layers.{i}.ln1.weight"]
+        transformer_lm.layers[i].ffn.w1.weight.data = weights[f"layers.{i}.ffn.w1.weight"]
+        transformer_lm.layers[i].ffn.w2.weight.data = weights[f"layers.{i}.ffn.w2.weight"]
+        transformer_lm.layers[i].ffn.w3.weight.data = weights[f"layers.{i}.ffn.w3.weight"]
+        transformer_lm.layers[i].ln2.weight.data = weights[f"layers.{i}.ln2.weight"]
+    transformer_lm.ln_final.weight.data = weights["ln_final.weight"]
+    transformer_lm.lm_head.weight.data = weights["lm_head.weight"]
+    return transformer_lm(in_indices)
 
 
 def run_rmsnorm(
